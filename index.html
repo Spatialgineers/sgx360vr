@@ -2,195 +2,615 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SGX ENGINE | Spatialgineers VR Sandbox</title>
-    <style>
-        :root {
-            --sgx-yellow: #FDCC0D;
-            --sgx-blue: #32527B;
-            --sgx-copper: #B87333;
-            --sgx-bg: #050505;
-            --glass: rgba(20, 20, 20, 0.95);
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Spatialgineers | SGX VisGen Pro</title>
+    
+    <!-- Tailwind CSS for UI Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- SGX Brand Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        sgxblue: '#32527B',
+                        sgxyellow: '#FDCC0D',
+                        sgxcopper: '#B87333',
+                        sgxdark: '#111111',
+                    },
+                    fontFamily: {
+                        mono: ['"Space Mono"', 'monospace'],
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
         }
-        body {
-            margin: 0; padding: 0; background: var(--sgx-bg);
-            color: #fff; font-family: 'Courier New', Courier, monospace;
-            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
-        }
-        header {
-            background: #0a0a0a; border-bottom: 2px solid var(--sgx-yellow);
-            padding: 15px 25px; display: flex; justify-content: space-between; align-items: center;
-        }
-        .logo-container {
-            display: flex; flex-direction: column;
-        }
-        h1 { margin: 0; font-size: 1.4rem; letter-spacing: 3px; color: var(--sgx-yellow); font-weight: 900; }
-        span.subtitle { font-size: 0.7rem; color: var(--sgx-blue); letter-spacing: 1px; text-transform: uppercase; }
-        
-        .controls { display: flex; gap: 10px; }
-        button {
-            background: transparent; color: var(--sgx-yellow); border: 1px solid var(--sgx-yellow);
-            padding: 8px 15px; cursor: pointer; font-family: inherit; font-weight: bold; transition: 0.2s; text-transform: uppercase;
-        }
-        button:hover { background: var(--sgx-yellow); color: #000; }
-        button.action { background: var(--sgx-blue); border-color: var(--sgx-blue); color: #fff; }
-        button.action:hover { background: #4a7ab5; border-color: #4a7ab5; }
+    </script>
 
-        .workspace { display: flex; flex: 1; overflow: hidden; }
-        .panel { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #222; }
-        
-        textarea {
-            flex: 1; background: #080808; color: #00ffcc; border: none; padding: 15px;
-            font-family: 'Courier New', Courier, monospace; font-size: 0.85rem; resize: none; outline: none;
-            white-space: pre; overflow-wrap: normal; overflow-x: auto;
+    <!-- A-Frame (WebXR Framework) -->
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 999;
+            pointer-events: none;
         }
         
-        iframe { flex: 1; border: none; background: #000; width: 100%; height: 100%; }
+        .pointer-events-auto { pointer-events: auto; }
+        /* Posicionar botón VR arriba de nuestra UI base */
+        .a-enter-vr { bottom: 120px !important; right: 20px !important; }
         
-        .label { 
-            background: #111; padding: 8px 15px; font-size: 0.8rem; color: #aaa; 
-            border-bottom: 1px solid #222; display: flex; justify-content: space-between;
+        .glass {
+            background: rgba(17, 17, 17, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(253, 204, 13, 0.2);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
         }
-        .warning { color: var(--sgx-copper); font-size: 0.7rem; font-weight: bold; }
+        
+        .hidden-ui { display: none !important; }
+        
+        /* Select styling reset */
+        select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
+        
+        /* Custom Scrollbar for code block */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #111; }
+        ::-webkit-scrollbar-thumb { background: #32527B; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #FDCC0D; }
+    </style>
+</head>
+<body class="bg-black text-white font-sans overflow-hidden m-0 p-0">
+
+    <!-- WebXR 3D Scene (Main Portal Viewer) -->
+    <a-scene id="main-scene" loading-screen="dotsColor: #FDCC0D; backgroundColor: #111111" 
+             renderer="antialias: true; colorManagement: true;"
+             vr-mode-ui="enabled: true">
+        
+        <!-- Asset Management -->
+        <a-assets id="dynamic-assets">
+            <video id="media-asset-video" 
+                   crossorigin="anonymous" 
+                   playsinline 
+                   webkit-playsinline 
+                   loop 
+                   muted
+                   preload="auto"
+                   src="https://bitmovin-a.akamaihd.net/content/playhouse-vr/progressive.mp4">
+            </video>
+            <img id="media-asset-image" crossorigin="anonymous" src="">
+        </a-assets>
+
+        <!-- Contenedor Dinámico para inyectar 360 o Plano 2D -->
+        <a-entity id="media-container">
+            <a-videosphere src="#media-asset-video" rotation="0 -90 0"></a-videosphere>
+        </a-entity>
+
+        <!-- Cámara Base y Rotación (Desactivado si es 2D Plane) -->
+        <a-entity id="camera-rig" animation="property: rotation; to: 0 -360 0; loop: true; dur: 120000; easing: linear;">
+            <a-entity camera look-controls="reverseMouseDrag: true" position="0 1.6 0"></a-entity>
+        </a-entity>
+    </a-scene>
+
+    <!-- HTML UI Overlay -->
+    <div id="ui-layer" class="flex flex-col justify-between transition-opacity duration-300">
+        
+        <!-- Header (Branding) -->
+        <header class="p-4 md:p-6 flex justify-between items-center pointer-events-auto w-full glass rounded-b-xl">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-full bg-sgxblue border border-sgxyellow flex items-center justify-center shadow-[0_0_15px_rgba(253,204,13,0.4)]">
+                    <i class="fa-solid fa-bolt text-sgxyellow"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-mono font-bold tracking-widest text-white leading-tight">
+                        SPATIAL<span class="text-sgxyellow">GINEERS</span>
+                    </h1>
+                    <p class="text-[10px] md:text-xs text-sgxcopper tracking-widest font-mono">VISGEN PRO | XR ENGINE</p>
+                </div>
+            </div>
+            <div class="hidden md:flex gap-3">
+                <span id="status-indicator" class="px-4 py-1.5 rounded-full border border-sgxyellow bg-sgxyellow/10 text-xs font-mono flex items-center gap-2 transition-colors duration-300">
+                    <div class="w-2 h-2 rounded-full bg-sgxyellow animate-pulse" id="status-dot"></div> <span id="status-text" class="text-sgxyellow">Sistema Online</span>
+                </span>
+            </div>
+        </header>
+
+        <!-- Bottom Controls -->
+        <footer class="p-4 md:p-6 pointer-events-auto flex flex-col md:flex-row gap-4 items-center justify-between w-full md:w-auto md:mx-auto md:mb-6 glass rounded-t-xl md:rounded-2xl">
+            
+            <!-- Playback Controls -->
+            <div id="playback-controls" class="flex gap-3 w-full md:w-auto justify-center transition-all duration-300">
+                <button id="btn-play" class="w-12 h-12 rounded-full bg-sgxyellow text-black hover:bg-white hover:scale-105 transition-all flex items-center justify-center text-xl shadow-[0_0_15px_rgba(253,204,13,0.3)]">
+                    <i class="fas fa-pause"></i>
+                </button>
+                <button id="btn-mute" class="w-12 h-12 rounded-full border border-sgxcopper text-sgxcopper hover:border-sgxyellow hover:text-sgxyellow transition-all flex items-center justify-center text-lg bg-black/60">
+                    <i class="fas fa-volume-mute"></i>
+                </button>
+            </div>
+
+            <!-- Custom URL Input & Generator Logic -->
+            <div class="flex flex-col md:flex-row w-full md:w-auto gap-3">
+                <div class="flex flex-col md:flex-row w-full md:w-[650px] bg-black/80 rounded-xl border border-sgxblue overflow-hidden focus-within:border-sgxyellow transition-colors shadow-inner">
+                    
+                    <!-- Media Type Selector (Video/Photo) -->
+                    <div class="relative bg-sgxblue/30 border-r border-sgxblue md:w-32">
+                        <select id="media-type" class="bg-transparent text-white text-xs md:text-sm font-bold font-mono pl-4 pr-8 py-3 w-full cursor-pointer focus:outline-none">
+                            <option value="video" class="text-black">VIDEO</option>
+                            <option value="image" class="text-black">PHOTO</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-sgxyellow">
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </div>
+                    </div>
+
+                    <!-- Projection Type Selector (360/Plane) -->
+                    <div class="relative bg-sgxcopper/20 border-r border-sgxblue md:w-36">
+                        <select id="projection-type" class="bg-transparent text-white text-xs md:text-sm font-bold font-mono pl-4 pr-8 py-3 w-full cursor-pointer focus:outline-none">
+                            <option value="360" class="text-black">360° SPHERE</option>
+                            <option value="plane" class="text-black">2D PLANE (VR)</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-sgxyellow">
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </div>
+                    </div>
+
+                    <input type="url" id="url-input" placeholder="URL HTTPS de tu contenido..." 
+                           class="bg-transparent text-sm font-mono text-white px-4 py-3 w-full focus:outline-none placeholder-gray-600">
+                    
+                    <button id="btn-load" class="bg-sgxblue text-white px-5 font-bold text-sm hover:bg-sgxblue/80 transition-colors flex items-center justify-center" title="Procesar Entorno">
+                        <i class="fas fa-bolt text-sgxyellow"></i>
+                    </button>
+                </div>
+                
+                <button id="btn-open-embed" class="w-full md:w-auto px-6 py-3 bg-white/5 border border-white/20 hover:bg-sgxyellow hover:text-black hover:border-sgxyellow font-bold font-mono text-sm rounded-xl transition-all flex items-center justify-center gap-2 group">
+                    <i class="fas fa-code text-sgxcopper group-hover:text-black transition-colors"></i> Build Export
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Onboarding Screen -->
+    <div id="onboarding" class="absolute inset-0 bg-black/90 z-[1000] flex flex-col items-center justify-center text-center p-6 backdrop-blur-xl transition-opacity duration-500">
+        <div class="max-w-xl w-full bg-[#0a0a0a] p-10 rounded-3xl border border-sgxblue/50 shadow-[0_0_50px_rgba(50,82,123,0.3)] relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-sgxyellow/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+            <div class="absolute bottom-0 left-0 w-32 h-32 bg-sgxblue/20 rounded-full blur-3xl -ml-10 -mb-10"></div>
+            
+            <div class="text-sgxyellow text-5xl mb-6 relative z-10">
+                <i class="fa-solid fa-vr-cardboard"></i>
+            </div>
+            <h2 class="text-3xl font-mono font-bold mb-2 relative z-10 text-white">SGX VISGEN <span class="text-sgxyellow">PRO</span></h2>
+            <p class="text-gray-400 mb-8 text-sm md:text-base relative z-10 font-mono">
+                Arquitectura de inmersión rápida. Visualiza contenido 360 o inyecta planos 2D en entornos inmersivos para Meta Quest. 
+            </p>
+            <button id="btn-enter" class="w-full py-4 bg-sgxblue text-white font-bold font-mono text-lg rounded-xl hover:bg-sgxyellow hover:text-black hover:scale-[1.02] shadow-lg shadow-sgxblue/30 transition-all duration-300 relative z-10">
+                INICIALIZAR ARQUITECTURA
+            </button>
+        </div>
+    </div>
+
+    <!-- Embed HTML Modal -->
+    <div id="embed-modal" class="hidden absolute inset-0 bg-black/90 z-[1100] flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="bg-[#0a0a0a] border border-sgxyellow/50 rounded-2xl p-6 md:p-8 w-full max-w-4xl shadow-[0_0_40px_rgba(253,204,13,0.15)] pointer-events-auto flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl md:text-2xl font-bold font-mono text-white flex items-center gap-3">
+                    <i class="fas fa-terminal text-sgxcopper"></i> Standalone Export (VR Ready)
+                </h3>
+                <button id="btn-close-embed" class="text-gray-500 hover:text-sgxyellow transition-colors"><i class="fas fa-times text-2xl"></i></button>
+            </div>
+            
+            <div class="bg-sgxblue/10 border border-sgxblue/30 rounded-lg p-4 mb-6">
+                <p class="text-sm text-gray-300 font-mono leading-relaxed">
+                    <i class="fas fa-info-circle text-sgxyellow mr-2"></i>
+                    Este código crudo no contiene UI de Tailwind. Es puro A-Frame estructurado para ser leído directamente por el navegador de <span class="text-sgxyellow font-bold">Meta Quest</span>. Ideal para experiencias Standalone.
+                </p>
+            </div>
+            
+            <div class="relative flex-grow mb-6">
+                <div class="absolute top-0 right-0 bg-gray-800 text-xs text-gray-400 px-3 py-1 rounded-bl-lg rounded-tr-lg font-mono border-b border-l border-gray-700">HTML</div>
+                <textarea id="embed-code-text" readonly class="w-full h-full bg-[#111] text-green-400 font-mono text-xs md:text-sm p-5 pt-8 rounded-xl border border-gray-800 focus:outline-none focus:border-sgxblue transition-colors resize-none overflow-y-auto min-h-[250px]"></textarea>
+            </div>
+            
+            <div class="flex justify-end gap-3 mt-auto">
+                <button id="btn-copy-embed" class="px-8 py-4 bg-sgxyellow text-black font-bold font-mono rounded-xl hover:bg-white shadow-[0_0_15px_rgba(253,204,13,0.3)] transition-all flex items-center gap-2 w-full md:w-auto justify-center">
+                    <i class="fas fa-copy"></i> Copiar Código Base
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Lógica Central
+            let currentUrl = "https://bitmovin-a.akamaihd.net/content/playhouse-vr/progressive.mp4";
+            let currentType = "video"; 
+            let currentProj = "360"; // 360 o plane
+            let isPlaying = false;
+            let isMuted = true;
+
+            // DOM Elements
+            const sceneEl = document.getElementById('main-scene');
+            const mediaContainer = document.getElementById('media-container');
+            const cameraRig = document.getElementById('camera-rig');
+            const videoAsset = document.getElementById('media-asset-video');
+            const imageAsset = document.getElementById('media-asset-image');
+            const uiLayer = document.getElementById('ui-layer');
+
+            // UI Elements
+            const onboarding = document.getElementById('onboarding');
+            const btnEnter = document.getElementById('btn-enter');
+            const btnPlay = document.getElementById('btn-play');
+            const btnMute = document.getElementById('btn-mute');
+            const btnLoad = document.getElementById('btn-load');
+            const urlInput = document.getElementById('url-input');
+            const mediaTypeSelect = document.getElementById('media-type');
+            const projTypeSelect = document.getElementById('projection-type');
+            const playbackControls = document.getElementById('playback-controls');
+            
+            // Modal Elements
+            const btnOpenEmbed = document.getElementById('btn-open-embed');
+            const btnCloseEmbed = document.getElementById('btn-close-embed');
+            const btnCopyEmbed = document.getElementById('btn-copy-embed');
+            const embedModal = document.getElementById('embed-modal');
+            const embedCodeText = document.getElementById('embed-code-text');
+
+            // Ocultar UI en Inmersión (Fricción Cero en Gafas)
+            sceneEl.addEventListener('enter-vr', () => {
+                uiLayer.style.display = 'none';
+            });
+            sceneEl.addEventListener('exit-vr', () => {
+                uiLayer.style.display = 'flex';
+                // Si es video, asegurar que siga reproduciendo al salir de VR
+                if(isPlaying && currentType === 'video') {
+                    videoAsset.play().catch(e => console.warn(e));
+                }
+            });
+
+            // Inicialización de Arquitectura
+            btnEnter.addEventListener('click', () => {
+                onboarding.style.opacity = '0';
+                setTimeout(() => { onboarding.style.display = 'none'; }, 500);
+                
+                if(currentType === 'video') {
+                    videoAsset.muted = isMuted; 
+                    videoAsset.play().then(() => {
+                        isPlaying = true;
+                        updatePlayButton();
+                    }).catch(err => {
+                        console.warn("Autoplay bloqueado:", err);
+                        isPlaying = false;
+                        updatePlayButton();
+                    });
+                }
+            });
+
+            // Control de Tipo de Medio (Esconde Play controls si es imagen)
+            mediaTypeSelect.addEventListener('change', (e) => {
+                if(e.target.value === 'image') {
+                    urlInput.placeholder = "Link JPG/PNG (HTTPS)...";
+                    playbackControls.classList.add('hidden-ui');
+                } else {
+                    urlInput.placeholder = "Link MP4 (HTTPS)...";
+                    playbackControls.classList.remove('hidden-ui');
+                }
+            });
+
+            // Inyección y Procesamiento de la Escena (El Build)
+            btnLoad.addEventListener('click', () => {
+                const newUrl = urlInput.value.trim();
+                const selectedType = mediaTypeSelect.value;
+                const selectedProj = projTypeSelect.value;
+                
+                if (newUrl) {
+                    btnLoad.innerHTML = '<i class="fas fa-spinner fa-spin text-sgxyellow"></i>';
+                    currentUrl = newUrl;
+                    currentType = selectedType;
+                    currentProj = selectedProj;
+
+                    // Si es 2D Plane, detenemos la rotación para que funcione como cine
+                    if(currentProj === 'plane') {
+                        cameraRig.removeAttribute('animation');
+                        cameraRig.setAttribute('rotation', '0 0 0');
+                    } else {
+                        cameraRig.setAttribute('animation', 'property: rotation; to: 0 -360 0; loop: true; dur: 120000; easing: linear;');
+                    }
+
+                    if (currentType === 'video') {
+                        videoAsset.pause();
+                        videoAsset.setAttribute('src', currentUrl);
+                        videoAsset.load();
+                        
+                        if(currentProj === '360') {
+                            mediaContainer.innerHTML = '<a-videosphere src="#media-asset-video" rotation="0 -90 0"></a-videosphere>';
+                        } else {
+                            // Cinema Mode: Plano 2D gigante frente al usuario
+                            mediaContainer.innerHTML = '<a-video src="#media-asset-video" width="16" height="9" position="0 2 -8"></a-video>';
+                        }
+
+                        videoAsset.muted = isMuted;
+                        videoAsset.play().then(() => {
+                            isPlaying = true;
+                            updatePlayButton();
+                            btnLoad.innerHTML = '<i class="fas fa-bolt text-sgxyellow"></i>';
+                        }).catch(() => {
+                            isPlaying = false;
+                            updatePlayButton();
+                            btnLoad.innerHTML = '<i class="fas fa-bolt text-sgxyellow"></i>';
+                        });
+
+                    } else if (currentType === 'image') {
+                        videoAsset.pause();
+                        imageAsset.setAttribute('src', currentUrl);
+                        
+                        if(currentProj === '360') {
+                            mediaContainer.innerHTML = '<a-sky src="#media-asset-image" rotation="0 -90 0"></a-sky>';
+                        } else {
+                            mediaContainer.innerHTML = '<a-image src="#media-asset-image" width="16" height="9" position="0 2 -8"></a-image>';
+                        }
+                        btnLoad.innerHTML = '<i class="fas fa-bolt text-sgxyellow"></i>';
+                    }
+                }
+            });
+
+            // Controles Lógicos
+            btnPlay.addEventListener('click', () => {
+                if(currentType !== 'video') return;
+                if (videoAsset.paused) {
+                    videoAsset.play();
+                    isPlaying = true;
+                } else {
+                    videoAsset.pause();
+                    isPlaying = false;
+                }
+                updatePlayButton();
+            });
+
+            function updatePlayButton() {
+                if (isPlaying) {
+                    btnPlay.innerHTML = '<i class="fas fa-pause"></i>';
+                    btnPlay.classList.replace('bg-sgxblue', 'bg-sgxyellow');
+                    btnPlay.classList.replace('text-white', 'text-black');
+                } else {
+                    btnPlay.innerHTML = '<i class="fas fa-play pl-1"></i>';
+                    btnPlay.classList.replace('bg-sgxyellow', 'bg-sgxblue');
+                    btnPlay.classList.replace('text-black', 'text-white');
+                }
+            }
+
+            btnMute.addEventListener('click', () => {
+                if(currentType !== 'video') return;
+                videoAsset.muted = !videoAsset.muted;
+                isMuted = videoAsset.muted;
+                if (isMuted) {
+                    btnMute.innerHTML = '<i class="fas fa-volume-mute"></i>';
+                    btnMute.classList.add('text-sgxcopper', 'border-sgxcopper');
+                    btnMute.classList.remove('text-white', 'border-white');
+                } else {
+                    btnMute.innerHTML = '<i class="fas fa-volume-up"></i>';
+                    btnMute.classList.remove('text-sgxcopper', 'border-sgxcopper');
+                    btnMute.classList.add('text-white', 'border-white');
+                }
+            });
+
+            // Motor de Exportación (Clean Export)
+            btnOpenEmbed.addEventListener('click', () => {
+                
+                let assetHTML = '';
+                let entityHTML = '';
+                let rigHTML = '';
+                let controlsUIHTML = '';
+
+                // Definir los Assets
+                if (currentType === 'video') {
+                    assetHTML = `
+            <video id="media-content" crossorigin="anonymous" playsinline webkit-playsinline loop muted autoplay preload="auto">
+                <source src="${currentUrl}" type="video/mp4">
+            </video>`;
+                } else {
+                    assetHTML = `<img id="media-content" crossorigin="anonymous" src="${currentUrl}">`;
+                }
+
+                // Definir la Arquitectura de Proyección
+                if (currentProj === '360') {
+                    entityHTML = currentType === 'video' ? 
+                        `<a-videosphere src="#media-content" rotation="0 -90 0"></a-videosphere>` : 
+                        `<a-sky src="#media-content" rotation="0 -90 0"></a-sky>`;
+                    
+                    rigHTML = `
+        <!-- Rotación Cinemática Suave -->
+        <a-entity id="rig" animation="property: rotation; to: 0 -360 0; loop: true; dur: 120000; easing: linear;">
+            <a-entity camera look-controls="reverseMouseDrag: true" position="0 1.6 0"></a-entity>
+        </a-entity>`;
+                } else {
+                    // MODO 2D (Cinema VR)
+                    entityHTML = currentType === 'video' ? 
+                        `<a-video src="#media-content" width="16" height="9" position="0 2 -8"></a-video>` : 
+                        `<a-image src="#media-content" width="16" height="9" position="0 2 -8"></a-image>`;
+                    
+                    rigHTML = `
+        <!-- Cámara Estática para Visualización de Pantalla -->
+        <a-entity id="rig">
+            <a-entity camera look-controls="reverseMouseDrag: true" position="0 1.6 0"></a-entity>
+        </a-entity>`;
+                }
+
+                // Definir los Controles Standalone (Solo si es Video)
+                if (currentType === 'video') {
+                    controlsUIHTML = `
+    <!-- Controles Flotantes SGX (Desaparecen en VR) -->
+    <div id="sgx-controls">
+        <button id="btn-play" class="ctrl-btn"><i class="fas fa-pause"></i></button>
+        <button id="btn-mute" class="ctrl-btn"><i class="fas fa-volume-mute"></i></button>
+    </div>`;
+                }
+
+                // Generación de Código Crudo
+                const standaloneHTML = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SGX Immersive Experience</title>
+    <!-- Core Engine: A-Frame -->
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"><\/script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; width: 100%; height: 100%; font-family: monospace; }
+        /* Posición global del botón VR por defecto en Quest */
+        .a-enter-vr { bottom: 20px !important; right: 20px !important; z-index: 10000; }
+        
+        /* SGX Standalone Controls UI */
+        #sgx-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            z-index: 9999;
+            background: rgba(17, 17, 17, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 12px 24px;
+            border-radius: 100px;
+            border: 1px solid rgba(253, 204, 13, 0.4);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transition: opacity 0.3s;
+        }
+        .ctrl-btn {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            outline: none;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        .ctrl-btn:hover {
+            background: rgba(253, 204, 13, 0.2);
+            color: #FDCC0D;
+        }
+        .ctrl-active {
+            color: #FDCC0D;
+        }
     </style>
 </head>
 <body>
 
-    <header>
-        <div class="logo-container">
-            <h1>⚙️ SPATIALGINEERS</h1>
-            <span class="subtitle">SGX VR Sandbox Engine</span>
-        </div>
-        <div class="controls">
-            <button id="btn-run">▶ Ejecutar</button>
-            <button id="btn-inject" class="action">💉 Hacer VR-Ready</button>
-            <button id="btn-export">💾 Exportar</button>
-        </div>
-    </header>
+    <a-scene loading-screen="dotsColor: #FDCC0D; backgroundColor: #050505" 
+             renderer="antialias: true; colorManagement: true;"
+             vr-mode-ui="enabled: true">
+        
+        <a-assets>${assetHTML}
+        </a-assets>
 
-    <div class="workspace">
-        <div class="panel">
-            <div class="label">
-                INPUT HTML (Three.js Raw)
-                <span class="warning">⚠️ RULE: DOM UI disappears in WebXR. Use HTMLMesh for VR Menus.</span>
-            </div>
-            <textarea id="code-editor"></textarea>
-        </div>
-        <div class="panel">
-            <div class="label">LIVE PREVIEW</div>
-            <iframe id="preview-frame" allow="xr-spatial-tracking"></iframe>
-        </div>
-    </div>
+        ${entityHTML}
+        ${rigHTML}
+
+    </a-scene>
+    ${controlsUIHTML}
 
     <script>
-        const editor = document.getElementById('code-editor');
-        const preview = document.getElementById('preview-frame');
+        document.addEventListener('DOMContentLoaded', () => {
+            const mediaEl = document.getElementById('media-content');
+            const sceneEl = document.querySelector('a-scene');
+            const controlsUI = document.getElementById('sgx-controls');
+            
+            // Ocultar controles al entrar en modo inmersivo (Meta Quest)
+            sceneEl.addEventListener('enter-vr', () => {
+                if(controlsUI) controlsUI.style.display = 'none';
+            });
+            sceneEl.addEventListener('exit-vr', () => {
+                if(controlsUI) controlsUI.style.display = 'flex';
+                // Forzar reproducción al salir para evitar pausas indeseadas
+                if(mediaEl && mediaEl.tagName === 'VIDEO' && !mediaEl.paused) {
+                    mediaEl.play().catch(e => console.warn(e));
+                }
+            });
 
-        // PoC Base Code
-        const defaultCode = `<!DOCTYPE html>
-<html lang="es">
-<head>
-    <title>SGX Base Scene</title>
-    <style>body { margin: 0; overflow: hidden; background: #050505; }</style>
-    <script type="importmap">
-        { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-                       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
-    <\/script>
-</head>
-<body>
-    <script type="module">
-        import * as THREE from 'three';
+            if(mediaEl && mediaEl.tagName === 'VIDEO') {
+                const btnPlay = document.getElementById('btn-play');
+                const btnMute = document.getElementById('btn-mute');
+                let isPlaying = false;
 
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-        
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
+                // Forzar arranque inicial (Autoplay en móviles requiere interacción a veces)
+                mediaEl.play().then(() => {
+                    isPlaying = true;
+                    btnPlay.innerHTML = '<i class="fas fa-pause"></i>';
+                }).catch(error => {
+                    console.log("Sistema bloqueando autoplay. Requiere interacción.", error);
+                    btnPlay.innerHTML = '<i class="fas fa-play"></i>';
+                });
 
-        // Core SGX Gear/Cube
-        const geometry = new THREE.BoxGeometry();
-        const material = new THREE.MeshBasicMaterial({ color: 0xFDCC0D, wireframe: true });
-        const mesh = new THREE.Mesh(geometry, material);
-        scene.add(mesh);
+                // Lógica Botón Play/Pause
+                btnPlay.addEventListener('click', () => {
+                    if (mediaEl.paused) {
+                        mediaEl.play();
+                        isPlaying = true;
+                        btnPlay.innerHTML = '<i class="fas fa-pause"></i>';
+                    } else {
+                        mediaEl.pause();
+                        isPlaying = false;
+                        btnPlay.innerHTML = '<i class="fas fa-play"></i>';
+                    }
+                });
 
-        camera.position.z = 5;
-
-        function animate() {
-            requestAnimationFrame(animate);
-            mesh.rotation.x += 0.01;
-            mesh.rotation.y += 0.01;
-            renderer.render(scene, camera);
-        }
-        animate();
+                // Lógica Botón Mute/Unmute
+                btnMute.addEventListener('click', () => {
+                    mediaEl.muted = !mediaEl.muted;
+                    if (mediaEl.muted) {
+                        btnMute.innerHTML = '<i class="fas fa-volume-mute"></i>';
+                        btnMute.classList.remove('ctrl-active');
+                    } else {
+                        btnMute.innerHTML = '<i class="fas fa-volume-up"></i>';
+                        btnMute.classList.add('ctrl-active');
+                    }
+                });
+            }
+        });
     <\/script>
 </body>
 </html>`;
 
-        editor.value = defaultCode;
+                embedCodeText.value = standaloneHTML;
+                embedModal.classList.remove('hidden');
+            });
 
-        function runCode() {
-            preview.srcdoc = editor.value;
-        }
+            btnCloseEmbed.addEventListener('click', () => {
+                embedModal.classList.add('hidden');
+            });
 
-        // SGX INJECTOR ENGINE
-        function injectVR() {
-            let code = editor.value;
-
-            if (code.includes('VRButton.js')) return;
-
-            // Import VR Button
-            code = code.replace(
-                /import\s+\*\s+as\s+THREE\s+from\s+['"]three['"];/,
-                `import * as THREE from 'three';\n        import { VRButton } from 'three/addons/webxr/VRButton.js';`
-            );
-
-            // Setup Renderer for VR
-            code = code.replace(
-                /(renderer\.setSize\([^;]+;\s*)/,
-                `$1\n        // --- SGX VR PIPELINE ---
-        renderer.xr.enabled = true;
-        const vrBtn = VRButton.createButton(renderer);
-        vrBtn.style.background = '#FDCC0D';
-        vrBtn.style.color = '#000';
-        document.body.appendChild(vrBtn);
-        
-        // Locomotion Rig
-        const cameraGroup = new THREE.Group();
-        scene.add(cameraGroup);
-        cameraGroup.add(camera);
-        // ------------------------\n`
-            );
-
-            // Hijack requestAnimationFrame
-            code = code.replace(/requestAnimationFrame\s*\(\s*([a-zA-Z0-9_]+)\s*\)\s*;/g, '// requestAnimationFrame bloqueado por SGX');
-            
-            code = code.replace(
-                /(function\s+([a-zA-Z0-9_]+)\s*\(\)\s*\{[\s\S]*?renderer\.render\s*\(\s*scene\s*,\s*camera\s*\)\s*;[\s\S]*?\})\s*\2\s*\(\)\s*;/g,
-                `$1\n        renderer.setAnimationLoop($2);`
-            );
-
-            editor.value = code;
-            runCode();
-        }
-
-        function exportHTML() {
-            const blob = new Blob([editor.value], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = "SGX_VR_Build.html";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-
-        document.getElementById('btn-run').addEventListener('click', runCode);
-        document.getElementById('btn-inject').addEventListener('click', injectVR);
-        document.getElementById('btn-export').addEventListener('click', exportHTML);
-
-        runCode();
+            btnCopyEmbed.addEventListener('click', () => {
+                embedCodeText.select();
+                document.execCommand('copy');
+                
+                const originalText = btnCopyEmbed.innerHTML;
+                btnCopyEmbed.innerHTML = '<i class="fas fa-check"></i> Sistema Copiado';
+                btnCopyEmbed.classList.replace('bg-sgxyellow', 'bg-green-500');
+                btnCopyEmbed.classList.replace('text-black', 'text-white');
+                
+                setTimeout(() => {
+                    btnCopyEmbed.innerHTML = originalText;
+                    btnCopyEmbed.classList.replace('bg-green-500', 'bg-sgxyellow');
+                    btnCopyEmbed.classList.replace('text-white', 'text-black');
+                }, 2000);
+            });
+        });
     </script>
 </body>
 </html>
