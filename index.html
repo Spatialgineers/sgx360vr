@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Spatialgineers | SGX 360 VisGen</title>
+    
+    <!-- Tailwind CSS for UI Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- SGX Brand Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        sgxblue: '#32527B',
+                        sgxyellow: '#FDCC0D',
+                        sgxcopper: '#B87333',
+                        sgxdark: '#111111',
+                    },
+                    fontFamily: {
+                        mono: ['"Space Mono"', 'monospace'],
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- A-Frame (WebXR Framework) -->
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 999;
+            pointer-events: none;
+        }
+        
+        .pointer-events-auto { pointer-events: auto; }
+        .a-enter-vr { bottom: 120px !important; }
+        
+        .glass {
+            background: rgba(17, 17, 17, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(253, 204, 13, 0.2);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .hidden-ui { display: none !important; }
+        
+        /* Select styling reset */
+        select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
+        
+        /* Custom Scrollbar for code block */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #111; }
+        ::-webkit-scrollbar-thumb { background: #32527B; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #FDCC0D; }
+    </style>
+</head>
+<body class="bg-black text-white font-sans overflow-hidden m-0 p-0">
+
+    <!-- WebXR 3D Scene (Main Portal Viewer) -->
+    <a-scene loading-screen="dotsColor: #FDCC0D; backgroundColor: #111111" 
+             renderer="antialias: true; colorManagement: true;"
+             vr-mode-ui="enabled: true">
+        
+        <!-- Mantener los assets fijos para no romper el binding de la textura de WebGL -->
+        <a-assets id="dynamic-assets">
+            <!-- Playsinline es CRÍTICO para que el video corra en el canvas en móviles -->
+            <video id="media-asset-video" 
+                   crossorigin="anonymous" 
+                   playsinline 
+                   webkit-playsinline 
+                   loop 
+                   muted
+                   preload="auto"
+                   src="https://bitmovin-a.akamaihd.net/content/playhouse-vr/progressive.mp4">
+            </video>
+            <img id="media-asset-image" crossorigin="anonymous" src="">
+        </a-assets>
+
+        <!-- Contenedor de la Esfera 360 -->
+        <a-entity id="media-container">
+            <a-videosphere src="#media-asset-video" rotation="0 -90 0"></a-videosphere>
+        </a-entity>
+
+        <!-- Rotación automática sutil para dar vida al entorno -->
+        <a-entity id="camera-rig" animation="property: rotation; to: 0 -360 0; loop: true; dur: 120000; easing: linear;">
+            <a-entity camera look-controls="reverseMouseDrag: true" position="0 1.6 0"></a-entity>
+        </a-entity>
+    </a-scene>
+
+    <!-- HTML UI Overlay -->
+    <div id="ui-layer" class="flex flex-col justify-between">
+        
+        <!-- Header (Branding) -->
+        <header class="p-4 md:p-6 flex justify-between items-center pointer-events-auto w-full glass rounded-b-xl">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-full bg-sgxblue border border-sgxyellow flex items-center justify-center shadow-[0_0_15px_rgba(253,204,13,0.4)]">
+                    <i class="fa-solid fa-bolt text-sgxyellow"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-mono font-bold tracking-widest text-white leading-tight">
+                        SPATIAL<span class="text-sgxyellow">GINEERS</span>
+                    </h1>
+                    <p class="text-[10px] md:text-xs text-sgxcopper tracking-widest font-mono">SGX 360 VISGEN | ENGINE</p>
+                </div>
+            </div>
+            <div class="hidden md:flex gap-3">
+                <span id="status-indicator" class="px-4 py-1.5 rounded-full border border-sgxyellow bg-sgxyellow/10 text-xs font-mono flex items-center gap-2 transition-colors duration-300">
+                    <div class="w-2 h-2 rounded-full bg-sgxyellow animate-pulse" id="status-dot"></div> <span id="status-text" class="text-sgxyellow">Sistema Online</span>
+                </span>
+            </div>
+        </header>
+
+        <!-- Bottom Controls -->
+        <footer class="p-4 md:p-6 pointer-events-auto flex flex-col md:flex-row gap-4 items-center justify-between w-full md:w-auto md:mx-auto md:mb-6 glass rounded-t-xl md:rounded-2xl">
+            
+            <!-- Playback Controls (Se ocultan si es imagen) -->
+            <div id="playback-controls" class="flex gap-3 w-full md:w-auto justify-center transition-all duration-300">
+                <button id="btn-play" class="w-12 h-12 rounded-full bg-sgxyellow text-black hover:bg-white hover:scale-105 transition-all flex items-center justify-center text-xl shadow-[0_0_15px_rgba(253,204,13,0.3)]">
+                    <i class="fas fa-pause"></i>
+                </button>
+                <button id="btn-mute" class="w-12 h-12 rounded-full border border-sgxcopper text-sgxcopper hover:border-sgxyellow hover:text-sgxyellow transition-all flex items-center justify-center text-lg bg-black/60">
+                    <i class="fas fa-volume-mute"></i>
+                </button>
+            </div>
+
+            <!-- Custom URL Input & Embed Generator -->
+            <div class="flex flex-col md:flex-row w-full md:w-auto gap-3">
+                <div class="flex w-full md:w-[500px] bg-black/80 rounded-xl border border-sgxblue overflow-hidden focus-within:border-sgxyellow transition-colors shadow-inner">
+                    
+                    <!-- Media Type Selector -->
+                    <div class="relative bg-sgxblue/30 border-r border-sgxblue">
+                        <select id="media-type" class="bg-transparent text-white text-sm font-bold font-mono pl-4 pr-8 py-3 w-full cursor-pointer focus:outline-none">
+                            <option value="video" class="text-black">VIDEO</option>
+                            <option value="image" class="text-black">PHOTO</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-sgxyellow">
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </div>
+                    </div>
+
+                    <input type="url" id="url-input" placeholder="Ingresa URL HTTPS (MP4)..." 
+                           class="bg-transparent text-sm font-mono text-white px-4 py-3 w-full focus:outline-none placeholder-gray-600">
+                    
+                    <button id="btn-load" class="bg-sgxblue text-white px-5 font-bold text-sm hover:bg-sgxblue/80 transition-colors flex items-center justify-center" title="Previsualizar">
+                        <i class="fas fa-bolt text-sgxyellow"></i>
+                    </button>
+                </div>
+                
+                <button id="btn-open-embed" class="w-full md:w-auto px-6 py-3 bg-white/5 border border-white/20 hover:bg-sgxyellow hover:text-black hover:border-sgxyellow font-bold font-mono text-sm rounded-xl transition-all flex items-center justify-center gap-2 group">
+                    <i class="fas fa-code text-sgxcopper group-hover:text-black transition-colors"></i> Generar Embed
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Onboarding Screen -->
+    <div id="onboarding" class="absolute inset-0 bg-black/90 z-[1000] flex flex-col items-center justify-center text-center p-6 backdrop-blur-xl transition-opacity duration-500">
+        <div class="max-w-xl w-full bg-[#0a0a0a] p-10 rounded-3xl border border-sgxblue/50 shadow-[0_0_50px_rgba(50,82,123,0.3)] relative overflow-hidden">
+            <!-- Decorative BG element -->
+            <div class="absolute top-0 right-0 w-32 h-32 bg-sgxyellow/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+            <div class="absolute bottom-0 left-0 w-32 h-32 bg-sgxblue/20 rounded-full blur-3xl -ml-10 -mb-10"></div>
+            
+            <div class="text-sgxyellow text-5xl mb-6 relative z-10">
+                <i class="fa-solid fa-cube"></i>
+            </div>
+            <h2 class="text-3xl font-mono font-bold mb-2 relative z-10 text-white">SGX 360 <span class="text-sgxyellow">VisGen</span></h2>
+            <p class="text-gray-400 mb-8 text-sm md:text-base relative z-10 font-mono">
+                Plataforma de visualización y generación de ecosistemas inmersivos. Configura tu render y exporta a WebXR.
+            </p>
+            <button id="btn-enter" class="w-full py-4 bg-sgxblue text-white font-bold font-mono text-lg rounded-xl hover:bg-sgxyellow hover:text-black hover:scale-[1.02] shadow-lg shadow-sgxblue/30 transition-all duration-300 relative z-10">
+                INICIALIZAR SISTEMA
+            </button>
+        </div>
+    </div>
+
+    <!-- Embed HTML Modal -->
+    <div id="embed-modal" class="hidden absolute inset-0 bg-black/90 z-[1100] flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="bg-[#0a0a0a] border border-sgxyellow/50 rounded-2xl p-6 md:p-8 w-full max-w-4xl shadow-[0_0_40px_rgba(253,204,13,0.15)] pointer-events-auto flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl md:text-2xl font-bold font-mono text-white flex items-center gap-3">
+                    <i class="fas fa-file-code text-sgxcopper"></i> Código de Inserción (White-Label)
+                </h3>
+                <button id="btn-close-embed" class="text-gray-500 hover:text-sgxyellow transition-colors"><i class="fas fa-times text-2xl"></i></button>
+            </div>
+            
+            <div class="bg-sgxblue/10 border border-sgxblue/30 rounded-lg p-4 mb-6">
+                <p class="text-sm text-gray-300 font-mono leading-relaxed">
+                    <i class="fas fa-info-circle text-sgxyellow mr-2"></i>
+                    Este código es completamente autónomo. Incluye librerías XR, rotación automática sutil y <span class="text-sgxyellow font-bold">reproducción de video forzada en móviles</span> mediante `playsinline` y `muted`.
+                </p>
+            </div>
+            
+            <div class="relative flex-grow mb-6">
+                <div class="absolute top-0 right-0 bg-gray-800 text-xs text-gray-400 px-3 py-1 rounded-bl-lg rounded-tr-lg font-mono border-b border-l border-gray-700">HTML</div>
+                <textarea id="embed-code-text" readonly class="w-full h-full bg-[#111] text-green-400 font-mono text-xs md:text-sm p-5 pt-8 rounded-xl border border-gray-800 focus:outline-none focus:border-sgxblue transition-colors resize-none overflow-y-auto min-h-[250px]"></textarea>
+            </div>
+            
+            <div class="flex justify-end gap-3 mt-auto">
+                <button id="btn-copy-embed" class="px-8 py-4 bg-sgxyellow text-black font-bold font-mono rounded-xl hover:bg-white shadow-[0_0_15px_rgba(253,204,13,0.3)] transition-all flex items-center gap-2 w-full md:w-auto justify-center">
+                    <i class="fas fa-copy"></i> Copiar al Portapapeles
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Estado Global
+            let currentUrl = "https://bitmovin-a.akamaihd.net/content/playhouse-vr/progressive.mp4";
+            let currentType = "video"; 
+            let isPlaying = false;
+            let isMuted = true;
+
+            // Elementos UI
+            const mediaContainer = document.getElementById('media-container');
+            const videoAsset = document.getElementById('media-asset-video');
+            const imageAsset = document.getElementById('media-asset-image');
+
+            const onboarding = document.getElementById('onboarding');
+            const btnEnter = document.getElementById('btn-enter');
+            const btnPlay = document.getElementById('btn-play');
+            const btnMute = document.getElementById('btn-mute');
+            const btnLoad = document.getElementById('btn-load');
+            const urlInput = document.getElementById('url-input');
+            const mediaTypeSelect = document.getElementById('media-type');
+            const playbackControls = document.getElementById('playback-controls');
+            
+            const btnOpenEmbed = document.getElementById('btn-open-embed');
+            const btnCloseEmbed = document.getElementById('btn-close-embed');
+            const btnCopyEmbed = document.getElementById('btn-copy-embed');
+            const embedModal = document.getElementById('embed-modal');
+            const embedCodeText = document.getElementById('embed-code-text');
+
+            // --- INICIALIZACIÓN ---
+            btnEnter.addEventListener('click', () => {
+                onboarding.style.opacity = '0';
+                setTimeout(() => { onboarding.style.display = 'none'; }, 500);
+                
+                if(currentType === 'video') {
+                    videoAsset.muted = isMuted; 
+                    videoAsset.play().then(() => {
+                        isPlaying = true;
+                        updatePlayButton();
+                    }).catch(err => {
+                        console.warn("Autoplay bloqueado por el navegador:", err);
+                        isPlaying = false;
+                        updatePlayButton();
+                    });
+                }
+            });
+
+            // --- MANEJO DE TIPO DE MEDIO ---
+            mediaTypeSelect.addEventListener('change', (e) => {
+                if(e.target.value === 'image') {
+                    urlInput.placeholder = "Link JPG/PNG (HTTPS)...";
+                    playbackControls.classList.add('hidden-ui');
+                } else {
+                    urlInput.placeholder = "Link MP4 (HTTPS)...";
+                    playbackControls.classList.remove('hidden-ui');
+                }
+            });
+
+            // --- CARGAR NUEVO MEDIA ---
+            btnLoad.addEventListener('click', () => {
+                const newUrl = urlInput.value.trim();
+                const selectedType = mediaTypeSelect.value;
+                
+                if (newUrl) {
+                    btnLoad.innerHTML = '<i class="fas fa-spinner fa-spin text-sgxyellow"></i>';
+                    currentUrl = newUrl;
+                    currentType = selectedType;
+
+                    if (currentType === 'video') {
+                        videoAsset.pause();
+                        videoAsset.setAttribute('src', currentUrl);
+                        videoAsset.load();
+                        
+                        mediaContainer.innerHTML = '<a-videosphere src="#media-asset-video" rotation="0 -90 0"></a-videosphere>';
+
+                        videoAsset.muted = isMuted;
+                        videoAsset.play().then(() => {
+                            isPlaying = true;
+                            updatePlayButton();
+                            btnLoad.innerHTML = '<i class="fas fa-bolt text-sgxyellow"></i>';
+                        }).catch(() => {
+                            isPlaying = false;
+                            updatePlayButton();
+                            btnLoad.innerHTML = '<i class="fas fa-bolt text-sgxyellow"></i>';
+                        });
+
+                    } else if (currentType === 'image') {
+                        videoAsset.pause();
+                        imageAsset.setAttribute('src', currentUrl);
+                        mediaContainer.innerHTML = '<a-sky src="#media-asset-image" rotation="0 -90 0"></a-sky>';
+                        btnLoad.innerHTML = '<i class="fas fa-bolt text-sgxyellow"></i>';
+                    }
+                }
+            });
+
+            // --- CONTROLES DE REPRODUCCIÓN ---
+            btnPlay.addEventListener('click', () => {
+                if(currentType !== 'video') return;
+
+                if (videoAsset.paused) {
+                    videoAsset.play();
+                    isPlaying = true;
+                } else {
+                    videoAsset.pause();
+                    isPlaying = false;
+                }
+                updatePlayButton();
+            });
+
+            function updatePlayButton() {
+                if (isPlaying) {
+                    btnPlay.innerHTML = '<i class="fas fa-pause"></i>';
+                    btnPlay.classList.replace('bg-sgxblue', 'bg-sgxyellow');
+                    btnPlay.classList.replace('text-white', 'text-black');
+                } else {
+                    btnPlay.innerHTML = '<i class="fas fa-play pl-1"></i>';
+                    btnPlay.classList.replace('bg-sgxyellow', 'bg-sgxblue');
+                    btnPlay.classList.replace('text-black', 'text-white');
+                }
+            }
+
+            btnMute.addEventListener('click', () => {
+                if(currentType !== 'video') return;
+
+                videoAsset.muted = !videoAsset.muted;
+                isMuted = videoAsset.muted;
+                if (isMuted) {
+                    btnMute.innerHTML = '<i class="fas fa-volume-mute"></i>';
+                    btnMute.classList.add('text-sgxcopper', 'border-sgxcopper');
+                    btnMute.classList.remove('text-white', 'border-white');
+                } else {
+                    btnMute.innerHTML = '<i class="fas fa-volume-up"></i>';
+                    btnMute.classList.remove('text-sgxcopper', 'border-sgxcopper');
+                    btnMute.classList.add('text-white', 'border-white');
+                }
+            });
+
+            // --- GENERADOR DE HTML STANDALONE (VisGen Engine) ---
+            btnOpenEmbed.addEventListener('click', () => {
+                
+                let assetHTML = '';
+                let entityHTML = '';
+
+                if (currentType === 'video') {
+                    // CONFIGURACIÓN A PRUEBA DE BALAS PARA MOVILES: playsinline, webkit-playsinline, muted, autoplay
+                    assetHTML = `
+            <video id="vid360" crossorigin="anonymous" playsinline webkit-playsinline loop muted autoplay preload="auto">
+                <source src="${currentUrl}" type="video/mp4">
+            </video>`;
+                    entityHTML = `<a-videosphere src="#vid360" rotation="0 -90 0"></a-videosphere>`;
+                } else {
+                    // MODO IMAGEN
+                    assetHTML = `<img id="img360" crossorigin="anonymous" src="${currentUrl}">`;
+                    entityHTML = `<a-sky src="#img360" rotation="0 -90 0"></a-sky>`;
+                }
+
+                // Generación del código HTML puro
+                const standaloneHTML = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>360 Virtual Experience</title>
+    <!-- Powered by Spatialgineers VisGen -->
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"><\/script>
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; width: 100%; height: 100%; }
+        /* Uncomment below to hide the VR button if embedded in a small iframe */
+        /* .a-enter-vr { display: none !important; } */
+    </style>
+</head>
+<body>
+
+    <a-scene loading-screen="dotsColor: #FDCC0D; backgroundColor: #050505" 
+             renderer="antialias: true; colorManagement: true;"
+             vr-mode-ui="enabled: true">
+        
+        <a-assets>${assetHTML}
+        </a-assets>
+
+        ${entityHTML}
+
+        <!-- Cinematic Slow Rotation Rig -->
+        <a-entity id="rig" animation="property: rotation; to: 0 -360 0; loop: true; dur: 120000; easing: linear;">
+            <a-entity camera look-controls="reverseMouseDrag: true" position="0 1.6 0"></a-entity>
+        </a-entity>
+
+    </a-scene>
+
+    <script>
+        // Force video play on mobile devices bypassing restrictions (requires muted and playsinline attributes)
+        document.addEventListener('DOMContentLoaded', () => {
+            const videoEl = document.getElementById('vid360');
+            if(videoEl) {
+                // Attempt play to ensure mobile browsers kickstart the WebGL texture
+                videoEl.play().catch(error => {
+                    console.log("VisGen: Autoplay requires user interaction on this specific browser state.", error);
+                    // Add touch listener to force play on first touch if blocked
+                    document.body.addEventListener('touchstart', () => {
+                        videoEl.play();
+                    }, { once: true });
+                });
+            }
+        });
+    <\/script>
+</body>
+</html>`;
+
+                embedCodeText.value = standaloneHTML;
+                embedModal.classList.remove('hidden');
+            });
+
+            btnCloseEmbed.addEventListener('click', () => {
+                embedModal.classList.add('hidden');
+            });
+
+            btnCopyEmbed.addEventListener('click', () => {
+                embedCodeText.select();
+                document.execCommand('copy');
+                
+                const originalText = btnCopyEmbed.innerHTML;
+                btnCopyEmbed.innerHTML = '<i class="fas fa-check"></i> ¡VisGen Copiado!';
+                btnCopyEmbed.classList.replace('bg-sgxyellow', 'bg-green-500');
+                btnCopyEmbed.classList.replace('text-black', 'text-white');
+                
+                setTimeout(() => {
+                    btnCopyEmbed.innerHTML = originalText;
+                    btnCopyEmbed.classList.replace('bg-green-500', 'bg-sgxyellow');
+                    btnCopyEmbed.classList.replace('text-white', 'text-black');
+                }, 3000);
+            });
+            
+            // Fix iOS VR Exit
+            const sceneEl = document.querySelector('a-scene');
+            sceneEl.addEventListener('exit-vr', function () {
+                if(isPlaying && currentType === 'video') {
+                    videoAsset.play();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
